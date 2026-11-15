@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two Consuls — co-op strategy on the Roman frontier</title>
+<meta name="description" content="A co-op strategy game for two. Build a legion camp on the Roman frontier by day and hold it against raiders by night. In development, made with Godot.">
+<meta name="theme-color" content="#1d1830">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://twoconsulsgame.com/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://twoconsulsgame.com/">
+<meta property="og:title" content="Two Consuls">
+<meta property="og:description" content="A co-op strategy game for two on the Roman frontier. Build by day, hold the line by night.">
+<meta property="og:image" content="https://twoconsulsgame.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="fonts/Marcellus-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face { font-family: "Marcellus"; src: url("fonts/Marcellus-Regular.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("fonts/AlegreyaSans-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("fonts/AlegreyaSans-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("fonts/AlegreyaSans-Italic.woff2") format("woff2"); font-style: italic; font-display: swap; }
+
+:root {
+  --ground: #1d1830;      /* earth at night, page background */
+  --ground-deep: #15112a;
+  --parchment: #ede4d3;   /* text */
+  --parchment-dim: #b9b0c4;
+  --denarius: #f2c14e;    /* coin gold: the one accent, for actions */
+  --cloak: #a8322d;       /* consul red, only in the scene */
+  --laurel: #8fae6a;
+  --measure: 34rem;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--ground); color-scheme: dark; }
+body {
+  margin: 0;
+  font-family: "Alegreya Sans", "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--parchment);
+  background: var(--ground);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--denarius); text-underline-offset: 0.18em; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+a:focus-visible, .btn:focus-visible { outline: 3px solid var(--denarius); outline-offset: 4px; border-radius: 2px; }
+
+/* ---------- Hero: the frontier line at dusk ---------- */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+}
+.scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  z-index: -1;
+}
+.hero-text {
+  padding: clamp(2.5rem, 8vh, 6rem) clamp(1.25rem, 6vw, 5.5rem) 0;
+  max-width: 64rem;
+}
+.title {
+  font-family: "Marcellus", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.6rem, 9.2vw, 8rem);
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-shadow: 0 2px 24px rgba(29, 24, 48, 0.35);
+}
+/* Roman inscriptions separated words with an interpunct */
+/* the brightest star in the sky sits between the two words */
+.title .star { display: inline-block; width: 0.34em; height: 0.34em; margin: 0 0.1em; vertical-align: 0.42em;
+  filter: drop-shadow(0 0 0.06em #fff4d6) drop-shadow(0 0 0.18em rgba(255, 236, 190, 0.55)); }
+.title .star path { transform-origin: 50% 50%; animation: twinkle 4.5s ease-in-out infinite; }
+@keyframes twinkle { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.86); opacity: 0.85; } }
+.lede {
+  margin: 1.4rem 0 0;
+  max-width: 30rem;
+  font-size: clamp(1.15rem, 2.2vw, 1.4rem);
+  line-height: 1.45;
+  text-shadow: 0 1px 12px rgba(29, 24, 48, 0.55);
+}
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; margin-top: 1.8rem; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  padding: 0.7rem 1.25rem 0.75rem;
+  font: 500 1.0625rem/1 "Alegreya Sans", sans-serif;
+  text-decoration: none;
+  border-radius: 999px;
+  border: 2px solid var(--denarius);
+  transition: background-color 0.15s, color 0.15s;
+}
+.btn-gold { background: var(--denarius); color: var(--ground-deep); }
+.btn-gold:hover { background: #ffd56b; border-color: #ffd56b; }
+.btn-line { color: var(--parchment); background: rgba(29, 24, 48, 0.35); }
+.btn-line:hover { background: rgba(242, 193, 78, 0.16); }
+.btn svg { width: 1.1em; height: 1.1em; flex: none; }
+
+/* ---------- Scene animation: night falls once ---------- */
+.night, .night-land { opacity: 0; animation: fade-in 5s ease-in-out 1.2s forwards; }
+.night-land { animation-name: fade-in-land; }
+.sun { animation: sink 6s ease-in 0.8s forwards; }
+.stars { opacity: 0; animation: fade-in 3s ease-out 4.2s forwards; }
+.torch { opacity: 0; animation: fade-in 1.2s ease-out 4.6s forwards; }
+.torch .flame { transform-box: fill-box; transform-origin: 50% 100%; animation: flicker 1.6s ease-in-out 5.8s infinite alternate; }
+.fire { opacity: 0.35; animation: fire-up 3s ease-out 3.6s forwards; }
+@keyframes fade-in { to { opacity: 1; } }
+@keyframes fade-in-land { to { opacity: 0.55; } }
+@keyframes fire-up { to { opacity: 1; } }
+@keyframes sink { to { transform: translateY(70px); opacity: 0; } }
+@keyframes flicker { from { transform: scaleY(1) scaleX(1); } to { transform: scaleY(0.82) scaleX(1.08); } }
+@media (prefers-reduced-motion: reduce) {
+  .night, .stars, .torch, .fire { animation: none; opacity: 1; }
+  .night-land { animation: none; opacity: 0.55; }
+  .sun { animation: none; opacity: 0; }
+  .torch .flame { animation: none; }
+  .title .star path { animation: none; }
+}
+
+/* ---------- Content below the line ---------- */
+main > section {
+  padding: clamp(3.5rem, 9vw, 6.5rem) clamp(1.25rem, 6vw, 5.5rem);
+}
+h2 {
+  font-family: "Marcellus", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  margin: 0 0 1.25rem;
+}
+h3 {
+  font-family: "Marcellus", Georgia, serif;
+  font-weight: 400;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  margin: 0 0 0.4rem;
+}
+p { margin: 0 0 1rem; max-width: var(--measure); }
+.muted { color: var(--parchment-dim); }
+
+.intro { padding-top: 0.5rem !important; padding-bottom: 0 !important; }
+.intro p { font-size: 1.3rem; line-height: 1.5; max-width: 38rem; }
+
+.ideas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 2.75rem 4rem;
+  max-width: 62rem;
+}
+.idea { display: grid; grid-template-columns: 3rem 1fr; gap: 0 1.1rem; align-items: start; }
+.idea svg { width: 3rem; height: 3rem; margin-top: 0.15rem; }
+.idea p { margin: 0; }
+
+.road-section { background: var(--ground-deep); }
+.road {
+  list-style: none; margin: 2rem 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 62rem;
+  position: relative;
+}
+.road::before { /* the via itself: paved where built, dashed where planned */
+  content: ""; position: absolute; left: 0; right: 0; top: 0.55rem; height: 4px;
+  background: repeating-linear-gradient(90deg, var(--parchment-dim) 0 10px, transparent 10px 18px);
+  opacity: 0.45;
+}
+.road li { position: relative; padding: 1.75rem 1rem 0 0; }
+.road li::before {
+  content: ""; position: absolute; top: 0; left: 0;
+  width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: var(--ground-deep); border: 3px solid var(--parchment-dim);
+}
+.road li.now::before { background: var(--denarius); border-color: var(--denarius); box-shadow: 0 0 0 6px rgba(242, 193, 78, 0.18); }
+.road li.now::after { /* paved stretch up to the current stop */
+  content: ""; position: absolute; left: 0; top: 0.55rem; width: 1.15rem; height: 4px; background: var(--denarius);
+}
+.road strong { display: block; font-family: "Marcellus", Georgia, serif; font-weight: 400; font-size: 1.15rem; }
+.road span { display: block; color: var(--parchment-dim); font-size: 1rem; line-height: 1.35; }
+.road .when { position: absolute; top: -1.75rem; left: 0; color: var(--denarius); font-size: 0.95rem; }
+
+.follow-links { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; margin: 1.6rem 0 1.2rem; }
+.steam-note { font-size: 1rem; }
+
+footer {
+  padding: 2rem clamp(1.25rem, 6vw, 5.5rem) 2.5rem;
+  border-top: 1px solid rgba(185, 176, 196, 0.18);
+  color: var(--parchment-dim);
+  font-size: 0.95rem;
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem;
+}
+footer a { color: var(--parchment-dim); }
+
+@media (max-width: 600px) {
+  /* keep the consuls and the gate in frame on narrow screens */
+  .scene { inset: 0 auto 0 0; width: 155%; }
+}
+@media (max-width: 760px) {
+  .road { grid-template-columns: 1fr; gap: 1.4rem; }
+  .road::before { left: 0.5rem; right: auto; top: 0; bottom: 0; width: 4px; height: auto;
+    background: repeating-linear-gradient(180deg, var(--parchment-dim) 0 10px, transparent 10px 18px); }
+  .road li { padding: 0 0 0 2.4rem; }
+  .road li.now::after { display: none; }
+  .road .when { position: static; margin-bottom: 0.1rem; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <!-- The frontier at dusk. Kept in one inline SVG so the page has no image requests. -->
+  <svg class="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#3f3466"/>
+        <stop offset="0.45" stop-color="#9a5878"/>
+        <stop offset="0.72" stop-color="#e08a63"/>
+        <stop offset="0.86" stop-color="#f3b46c"/>
+      </linearGradient>
+      <linearGradient id="nightsky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#121433"/>
+        <stop offset="0.6" stop-color="#232552"/>
+        <stop offset="0.86" stop-color="#3b3463"/>
+      </linearGradient>
+      <radialGradient id="glow">
+        <stop offset="0" stop-color="#ffcf6b" stop-opacity="0.9"/>
+        <stop offset="0.35" stop-color="#f29a3a" stop-opacity="0.45"/>
+        <stop offset="1" stop-color="#f29a3a" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="landnight" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#141633" stop-opacity="0"/>
+        <stop offset="0.35" stop-color="#141633" stop-opacity="1"/>
+        <stop offset="0.62" stop-color="#141633" stop-opacity="1"/>
+        <stop offset="1" stop-color="#141633" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6d5a86"/>
+        <stop offset="1" stop-color="#2c2a52"/>
+      </linearGradient>
+    </defs>
+
+    <!-- sky -->
+    <rect width="1600" height="900" fill="url(#dusk)"/>
+    <circle class="sun" cx="1230" cy="560" r="40" fill="#ffd98a"/>
+    <rect class="night" width="1600" height="900" fill="url(#nightsky)"/>
+    <g class="stars" fill="#ede4d3">
+      <circle cx="1060" cy="70" r="1.6"/><circle cx="1110" cy="190" r="1.1"/><circle cx="1180" cy="330" r="1"/>
+      <circle cx="1290" cy="95" r="1.7"/><circle cx="1460" cy="150" r="1.2"/><circle cx="1540" cy="60" r="1.4"/>
+      <circle cx="1360" cy="250" r="1"/><circle cx="1240" cy="420" r="0.9"/><circle cx="1500" cy="360" r="1.1"/>
+      <circle cx="1020" cy="300" r="0.9"/><circle cx="1400" cy="40" r="1"/><circle cx="960" cy="440" r="0.8"/>
+    </g>
+
+    <!-- far hills across the river -->
+    <path d="M0 640 C 160 590 290 610 420 585 S 700 600 860 570 S 1150 600 1300 575 S 1520 590 1600 580 V 760 H 0 Z" fill="#5d4470"/>
+
+    <!-- forest, left: Germania -->
+    <path fill="#2f2547" d="M0 760 V 560 l18 -30 l14 28 l12 -46 l16 40 l10 -24 l14 34 l16 -58 l18 52 l12 -30 l14 36 l18 -64 l20 58 l12 -28 l16 40 l14 -50 l18 46 l10 -20 l16 38 l18 -60 l18 54 l14 -26 l14 34 l16 -44 l18 40 l14 -22 l18 44 l16 -38 l16 34 l14 -18 l20 36 l18 -30 l20 34 l16 -16 l18 30 l14 -8 l22 40 l20 24 l26 30 V 760 Z"/>
+    <!-- barbarian village at the forest edge -->
+    <g fill="#241c38">
+      <path d="M230 700 l40 -46 l40 46 Z"/><rect x="242" y="700" width="56" height="30"/>
+      <path d="M320 712 l30 -34 l30 34 Z"/><rect x="330" y="712" width="40" height="22"/>
+    </g>
+    <g class="fire"><circle cx="300" cy="735" r="46" fill="url(#glow)"/><circle cx="300" cy="736" r="5" fill="#ffcf6b"/></g>
+
+    <!-- river, right -->
+    <path d="M1150 760 C 1250 742 1420 748 1600 738 V 790 H 1150 Z" fill="url(#water)"/>
+    <g stroke="#ede4d3" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round">
+      <line x1="1220" y1="760" x2="1262" y2="760"/><line x1="1330" y1="770" x2="1390" y2="770"/><line x1="1470" y1="758" x2="1510" y2="758"/>
+    </g>
+    <!-- outpost on the far bank: the goal -->
+    <g fill="#2a2246"><rect x="1478" y="676" width="34" height="66"/><path d="M1470 678 h50 l-25 -26 Z"/></g>
+
+    <!-- ground -->
+    <path d="M0 752 C 300 742 600 748 900 744 S 1300 750 1600 742 V 900 H 0 Z" fill="#1d1830"/>
+
+    <!-- the via: paved from the castrum gate, still being laid towards the river -->
+    <g fill="#5a5070">
+      <rect x="960" y="752" width="26" height="7" rx="2"/><rect x="990" y="751" width="26" height="7" rx="2"/>
+      <rect x="1020" y="751" width="26" height="7" rx="2"/><rect x="1050" y="750" width="26" height="7" rx="2"/>
+      <rect x="1080" y="750" width="26" height="7" rx="2"/><rect x="1110" y="750" width="26" height="7" rx="2" opacity="0.6"/>
+      <rect x="1140" y="749" width="26" height="7" rx="2" opacity="0.3"/>
+    </g>
+
+    <!-- castrum: palisade, towers, gate -->
+    <g fill="#171329">
+      <path d="M640 752 V 664 l7 -10 l7 10 V 752 Z M660 752 V 664 l7 -10 l7 10 V 752 Z M680 752 V 664 l7 -10 l7 10 V 752 Z M700 752 V 664 l7 -10 l7 10 V 752 Z M720 752 V 664 l7 -10 l7 10 V 752 Z"/>
+      <path d="M860 752 V 664 l7 -10 l7 10 V 752 Z M880 752 V 664 l7 -10 l7 10 V 752 Z M900 752 V 664 l7 -10 l7 10 V 752 Z M920 752 V 664 l7 -10 l7 10 V 752 Z M940 752 V 664 l7 -10 l7 10 V 752 Z"/>
+      <rect x="740" y="610" width="46" height="142"/><rect x="814" y="610" width="46" height="142"/>
+      <path d="M734 612 h58 v-14 h-58 Z M808 612 h58 v-14 h-58 Z"/>
+      <path d="M734 598 v-10 h10 v10 h9 v-10 h10 v10 h9 v-10 h10 v10 h10 v-10 h0 Z M808 598 v-10 h10 v10 h9 v-10 h10 v10 h9 v-10 h10 v10 h10 v-10 Z"/>
+      <path d="M786 752 V 682 a 14 14 0 0 1 28 0 V 752 Z" fill="#100d1f"/>
+      <rect x="786" y="640" width="28" height="14"/>
+    </g>
+    <!-- vexillum -->
+    <line x1="800" y1="640" x2="800" y2="566" stroke="#171329" stroke-width="3"/>
+    <path d="M800 570 h30 v26 l-15 -6 l-15 6 Z" fill="#a8322d"/>
+    <!-- torches on the towers, lit at nightfall -->
+    <g class="torch">
+      <circle cx="763" cy="592" r="38" fill="url(#glow)"/><circle cx="837" cy="592" r="38" fill="url(#glow)"/>
+      <path class="flame" d="M763 596 c -6 -8 -2 -16 0 -22 c 3 7 7 13 0 22 Z" fill="#ffcf6b"/>
+      <path class="flame" d="M837 596 c -6 -8 -2 -16 0 -22 c 3 7 7 13 0 22 Z" fill="#ffcf6b"/>
+    </g>
+
+    <!-- the two consuls, by the gate, with coins at their feet -->
+    <g transform="translate(560 690)">
+      <path d="M0 62 l6 -38 c 1 -8 6 -12 12 -12 s 11 4 12 12 l6 38 Z" fill="#a8322d"/>
+      <rect x="10" y="22" width="16" height="40" rx="3" fill="#171329"/>
+      <circle cx="18" cy="10" r="9" fill="#171329"/>
+      <path d="M8 8 q 10 -9 20 0" fill="none" stroke="#f2c14e" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(602 692)">
+      <path d="M0 60 l6 -36 c 1 -8 6 -12 12 -12 s 11 4 12 12 l6 36 Z" fill="#a8322d"/>
+      <rect x="10" y="22" width="16" height="38" rx="3" fill="#171329"/>
+      <circle cx="18" cy="10" r="9" fill="#171329"/>
+      <path d="M8 8 q 10 -9 20 0" fill="none" stroke="#f2c14e" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g fill="#f2c14e"><ellipse cx="652" cy="754" rx="5" ry="2.4"/><ellipse cx="664" cy="756" rx="5" ry="2.4"/></g>
+
+    <!-- night also settles over the land, a little -->
+    <rect class="night-land" y="520" width="1600" height="380" fill="url(#landnight)" style="mix-blend-mode:multiply"/>
+  </svg>
+
+  <div class="hero-text">
+    <h1 class="title">Two<svg class="star" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 0 C10.6 6.4 13.6 9.4 20 10 C13.6 10.6 10.6 13.6 10 20 C9.4 13.6 6.4 10.6 0 10 C6.4 9.4 9.4 6.4 10 0 Z" fill="#fff4d6"/></svg><span class="sr-only"> </span>Consuls</h1>
+    <p class="lede">A co-op strategy game for two. Build a legion camp on the Roman frontier by day, and hold it against raiders by night.</p>
+    <div class="actions">
+      <a class="btn btn-gold" href="https://www.youtube.com/@twoconsuls">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.7 15V9l5.8 3-5.8 3Z"/></svg>
+        Follow the devlog
+      </a>
+      <a class="btn btn-line" href="#follow">Get updates</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="intro" aria-labelledby="about">
+    <h2 id="about">Rome sent two of you</h2>
+    <p>The Republic never trusted one man with power, so it elected two consuls. Here, that is the whole game: you and a friend walk the edge of the empire, spend coins on soldiers, walls and roads, and argue about what comes first before the horn sounds.</p>
+    <p class="muted">Play online, or side by side on one screen. Solo works too.</p>
+  </section>
+
+  <section aria-labelledby="ideas-h">
+    <h2 id="ideas-h">What makes it Roman</h2>
+    <div class="ideas">
+      <div class="idea">
+        <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="13" r="5"/><circle cx="32" cy="13" r="5"/><path d="M8 40v-9a8 8 0 0 1 16 0v9M24 40v-9a8 8 0 0 1 16 0v9"/></svg>
+        <div><h3>Two consuls, one treasury</h3><p>Each of you carries a purse, but the big decisions, like a stone wall or the outpost, need coins from both.</p></div>
+      </div>
+      <div class="idea">
+        <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 34h8M16 34h8M28 34h8M40 34h4M8 40h8M20 40h8M32 40h8"/><path d="M34 26V10l8 4-8 4"/></svg>
+        <div><h3>Roads</h3><p>Lay a via from the camp to the outpost. Everyone on it moves faster, and once it is finished, supplies start to arrive.</p></div>
+      </div>
+      <div class="idea">
+        <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-linejoin="round"><rect x="6" y="22" width="11" height="16" rx="2"/><rect x="18.5" y="22" width="11" height="16" rx="2"/><rect x="31" y="22" width="11" height="16" rx="2"/><path d="M6 20l18-10 18 10"/></svg>
+        <div><h3>Formations</h3><p>Raise shields into a testudo when slingers come, or open into a line to push back a charge. Choosing wrong costs you the wall.</p></div>
+      </div>
+      <div class="idea">
+        <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 40C18 30 26 20 40 8"/><path d="M16 32c-5 0-8-3-8-7 5 0 8 3 8 7ZM22 25c-5-1-7-5-6-9 5 1 7 5 6 9ZM24 24c1-5 5-7 9-6-1 5-5 7-9 6ZM30 17c-1-5 1-8 5-9 1 5-1 8-5 9Z"/></svg>
+        <div><h3>Romanization</h3><p>Not every village has to burn. Bring gifts three days running and its raiders become allies. Miss a day and the next night is worse.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="road-section" aria-labelledby="road-h">
+    <h2 id="road-h">Where the road has reached</h2>
+    <p>Two Consuls is made by one developer in the evenings, with Godot. Right now the camp is coloured rectangles; the plan is a playable demo next year.</p>
+    <ol class="road" style="margin-top:3.25rem">
+      <li class="now"><span class="when">Now</span><strong>Foundation</strong><span>Walking, coins, day and night, networking</span></li>
+      <li><strong>Core</strong><span>Hiring, buildings, night raids</span></li>
+      <li><strong>Co-op</strong><span>The second consul, online play</span></li>
+      <li><strong>Roman ideas</strong><span>Roads, formations, Romanization</span></li>
+      <li><strong>Demo</strong><span>Art, sound, 30 minutes of play</span></li>
+    </ol>
+  </section>
+
+  <section id="follow" aria-labelledby="follow-h">
+    <h2 id="follow-h">Follow along</h2>
+    <p>Short devlog videos as the camp grows: networking problems, testudo experiments, first raids.</p>
+    <div class="follow-links">
+      <a class="btn btn-gold" href="https://www.youtube.com/@twoconsuls">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.7 15V9l5.8 3-5.8 3Z"/></svg>
+        YouTube
+      </a>
+      <a class="btn btn-line" href="https://bsky.app/profile/twoconsulsgame.com">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5.2 3.4C7.9 5.4 10.9 9.6 12 11.9c1.1-2.3 4.1-6.5 6.8-8.5 2-1.4 5.2-2.6 5.2 1 0 .7-.4 6-.7 6.9-.9 3.1-4.1 3.9-7 3.4 5 .9 6.3 3.7 3.5 6.5-5.2 5.4-7.5-1.3-8-3.1L12 17l-.2.1c-.5 1.8-2.8 8.5-8 3.1-2.8-2.8-1.5-5.6 3.5-6.5-2.9.5-6.1-.3-7-3.4C.4 9.4 0 4.1 0 3.4c0-3.6 3.2-2.4 5.2-1Z"/></svg>
+        Bluesky
+      </a>
+      <a class="btn btn-line" href="mailto:hello@twoconsulsgame.com?subject=Two%20Consuls%20updates">Email hello@twoconsulsgame.com</a>
+    </div>
+    <p class="muted steam-note">The Steam page opens closer to the demo. Write to us and we will tell you when it does.</p>
+  </section>
+</main>
+
+<footer>
+  <span>© 2026 Vortanct. Two Consuls is in development.</span>
+  <span>Made with <a href="https://godotengine.org">Godot</a>. Set in Marcellus and Alegreya Sans (<a href="fonts/OFL-Marcellus.txt">OFL</a>).</span>
+</footer>
+
+</body>
+</html>
